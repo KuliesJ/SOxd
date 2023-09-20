@@ -11,14 +11,14 @@ int myfifo;
 
 void sigusr1_handler(int signo) 
 {
-    int random_num = rand() % 21;
-    printf("p1 -> p2: %d\n", random_num);
+    int randomNumber = rand() % 100;
+    printf("Wrote on FIFO: %d\n", randomNumber);
 
-    write(myfifo, &random_num, sizeof(int)); // Enviar número al FIFO
-
+    write(myfifo, &randomNumber, sizeof(int)); // Enviar número al FIFO
+    sleep(1);
     int received_num;
     read(myfifo, &received_num, sizeof(int)); // Leer número desde el FIFO
-    printf("Recibido de p2: %d\n", received_num);
+    printf("Read from FIFO: %d\n", received_num);
 }
 
 int main()
