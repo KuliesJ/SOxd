@@ -1,58 +1,86 @@
-#include <fcntl.h>
 #include <stdio.h>
-#include <sys/stat.h>
-#include <unistd.h>
 #include <stdlib.h>
-#include <sys/wait.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
-int result_fd = open("/tmp/myfifo", O_WRONLY);
-#define MAX_BUF 1024
-int main(){
-    char buf[MAX_BUF];
-    
-    //Pipes for coms dad/son
-    int fd[2];
-    //0 Read 
-    //1 Write
-    pipe(fd);
+int main() {
+    int pipes1[2]; // Pipe para enviar x del padre al hijo
+    int pipes2[2]; // Pipe para enviar x+1 del hijo al padre
 
-    while(1){
-        //Forking
-        pid_t childpid;
-        childpid = fork();
-        if(childpid < 0){
-            perror("Pipe existencen't");
-        }
-        if(childpid == 0){
-            //Hijo
-            int result_son;
-            read(fd[0], buf, sizeof(int));
-            //
-            write(fd[1],buf,sizeof(int));
-        }
-        if(childpid > 0){
-            //Padre
-            int fd1, nbytes;
-            if ((fd1 = open("/tmp/myfifo", O_RDONLY)) < 0) {
-                perror("Pipe existencen't");
-                exit(1);
-            }
-            //Read from FIFO
-            read(fd1, buf, sizeof(int));
-            int num = *((int*)buf);
-            //Write to FD1//hijo
-            write(fd[0], &num, sizeof(int));
-            sleep(2);
-            //Read from FD2//hijo
-            read(fd[1], buf, sizeof(int))
-            //Write to FIFO
-            sleep(1);
-            nbytes = read(fd[0], &result_son, sizeof(int)); 
-            int result_final = result_son + 7;
-            printf("Wrote on FIFO: %d\n\n", result_final);
-            write(result_fd, &result_final, sizeof(int));
-        }
+    if (pipe(pipes1) == -1 || pipe(pipes2) == -1) {
+        perror("Error al crear los pipes");
+        exit(EXIT_FAILURE);
     }
-    
-    
+
+    pid_t pid = fork();
+
+    if (pid == -1) {
+        perror("Error al hacer fork");
+        exit(EXIT_FAILURE);
+    }
+
+    if (pid == 0) { // Código del hijo
+        close(pipes1[1]); // Cierra el extremo de escritura del primer pipe
+        close(pipes2[0]); // Cierra el extremo de lectura del segundo pipe
+
+        while (1) {
+            int x;
+            read(pipes1[0], &x, sizeof(int)); // Lee x del padre
+            printf("Recibido %d desde padre a través de pipes1\n", x);
+
+            // Incrementa x y envía de vuelta al padre
+            x++;
+            write(pipes2[1], &x, sizeof(int));
+            printf("Enviado %d desde hijo a padre a través de pipes2\n", x);
+        }
+
+        close(pipes1[0]);
+        close(pipes2[1]);
+        exit(EXIT_SUCCESS);
+    } else { // Código del padre
+        close(pipes1[0]); // Cierra el extremo de lectura del primer pipe
+        close(pipes2[1]); // Cierra el extremo de escritura del segundo pipe
+
+        while (1) {
+            // Lee un entero de la FIFO myfifo1
+            int fd_fifo1 = open("/tmp/myfifo1", O_RDONLY);
+            if (fd_fifo1 == -1) {
+                perror("Error al abrir myfifo1");
+                exit(EXIT_FAILURE);
+            }
+
+            int x;
+            read(fd_fifo1, &x, sizeof(int));
+            close(fd_fifo1);
+
+            printf("Recibido %d desde myfifo1\n", x);
+
+            // Envía x al hijo a través del primer pipe
+            write(pipes1[1], &x, sizeof(int));
+            printf("Enviado %d desde padre a hijo a través de pipes1\n", x);
+
+            // Espera a que el hijo envíe x+1 de vuelta
+            int resultado;
+            read(pipes2[0], &resultado, sizeof(int));
+            printf("Recibido %d desde hijo a padre a través de pipes2\n", resultado);
+
+            // Escribe el resultado en la FIFO myfifo2
+            int fd_fifo2 = open("/tmp/myfifo2", O_WRONLY);
+            if (fd_fifo2 == -1) {
+                perror("Error al abrir myfifo2");
+                exit(EXIT_FAILURE);
+            }
+            write(fd_fifo2, &resultado, sizeof(int));
+            printf("Enviado %d desde padre a través de myfifo2\n", resultado);
+            close(fd_fifo2);
+            printf("---------------------------------------------------------\n");
+        }
+
+        close(pipes1[1]);
+        close(pipes2[0]);
+    }
+
+    return 0;
 }
