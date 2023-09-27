@@ -31,7 +31,7 @@ int main() {
             printf("Recibido %d desde padre a través de pipes1\n", x);
 
             // Incrementa x y envía de vuelta al padre
-            x++;
+            x = x * 3;
             write(pipes2[1], &x, sizeof(int));
             printf("Enviado %d desde hijo a padre a través de pipes2\n", x);
         }
@@ -56,7 +56,7 @@ int main() {
             close(fd_fifo1);
 
             printf("Recibido %d desde myfifo1\n", x);
-
+            x = x + 7;
             // Envía x al hijo a través del primer pipe
             write(pipes1[1], &x, sizeof(int));
             printf("Enviado %d desde padre a hijo a través de pipes1\n", x);
